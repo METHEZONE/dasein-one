@@ -169,7 +169,7 @@ def learn(sent_text, person=""):
     import datetime
     HOME.mkdir(parents=True, exist_ok=True)
     with MINE.open("a") as f:
-        f.write(json.dumps({"text": sent_text.strip()}) + "\n")
+        f.write("\n" + json.dumps({"text": sent_text.strip()}) + "\n")
     n = HOME / "learn_count"
     c = int(n.read_text() or 0) + 1 if n.exists() else 1
     if person:

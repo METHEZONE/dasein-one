@@ -81,7 +81,7 @@ def refit():
 
 def learn_one(text, person):
     with core.MINE.open("a") as f:
-        f.write(json.dumps({"text": text.strip()}) + "\n")
+        f.write("\n" + json.dumps({"text": text.strip()}) + "\n")
     n = core.HOME / "learn_count"
     c = (int(n.read_text() or 0) if n.exists() else 0) + 1
     if person:
