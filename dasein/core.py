@@ -255,6 +255,31 @@ def fingerprint(n=15):
     return [wn[i] for i in keep[::-1][:n]], [wn[i] for i in keep[:n]]
 
 
+ADMIRE = HOME / "admire.jsonl"  # writing I love reading (rhythm only); my own texts stay the voice and the facts
+
+
+def add_admired(texts, source=""):
+    with ADMIRE.open("a") as f:
+        for t in texts:
+            if len(t.split()) >= 25:
+                f.write(json.dumps({"text": t.strip(), "source": source}) + "\n")
+
+
+def _admire_block(task, k=6):
+    if not ADMIRE.exists():
+        return ""
+    import numpy as np
+    texts = [json.loads(l)["text"] for l in ADMIRE.read_text().splitlines() if l.strip()]
+    if not texts:
+        return ""
+    v = TfidfVectorizer(sublinear_tf=True, stop_words="english").fit(texts + [task or "x"])
+    sim = (v.transform(texts) @ v.transform([task]).T).toarray().ravel()
+    top = [texts[i] for i in np.argsort(-sim)[:k]]
+    return ("## Writing I love reading (borrow its rhythm and stance only; never its facts, topics or phrases)\n"
+            + "\n".join(f"- {t}" for t in top)
+            + "\nBlend: cadence from this section, word choice and quirks from my own writing below, facts only from the task.\n\n")
+
+
 def style_brief(person="", task="", k=8):
     import numpy as np
     recs = []
@@ -272,7 +297,8 @@ def style_brief(person="", task="", k=8):
     med = int(np.median([len(t.split()) for t in top]))
     me, ai = fingerprint()
     return (f"# Style brief: write as me, to {person or 'the recipient'}\n\nTask: {task}\n\n"
-            "## My real writing on similar things (imitate voice, rhythm, punctuation, NOT content)\n"
+            + _admire_block(task)
+            + "## My real writing on similar things (imitate voice, rhythm, punctuation, NOT content)\n"
             + "\n".join(f"- {t}" for t in top)
             + f"\n\n## Who they are to me\n{person_get(person) if person else '(nobody specific)'}\n"
             + ("Infer how close we are from this (old friend, investor, someone I just met) and write exactly how I'd talk to them.\n\n" if person else "\n")
