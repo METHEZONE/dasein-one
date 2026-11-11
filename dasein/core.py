@@ -186,3 +186,50 @@ def spread_warning(s):
     if len(s) > 1 and (sp < 0.05 or min(s) >= 0.9):
         return "low discrimination - scores not reliable"
     return ""
+
+
+RULES = """1. Use only facts present in the task/context. Never invent names, numbers, dates, promises.
+2. Do not name emotions ("I'm excited/grateful/thrilled"). Show them the way my examples do, or skip them.
+3. Do not end with a summary, a moral, or a polite wrap-up line unless my examples do.
+4. Match the recipient's temperature (see relationship note); no more formal or warm than I would be with them.
+5. Length: stay near my median ({med} words). Do not pad.
+6. No slop vocabulary: delve, leverage, crucial, ensure, seamless, testament, tapestry, navigate, landscape, "I hope this finds you well", "feel free to"."""
+
+
+def fingerprint(n=15):
+    """Top 'me-like' and 'AI/other-like' word n-grams from the reward model coefficients."""
+    import numpy as np
+    m = pickle.loads(MODEL.read_bytes())
+    feats, lr = m.steps[0][1], m.steps[1][1]
+    names = [(a.get_feature_names_out()) for _, a in feats.transformer_list]
+    w = lr.coef_[0][len(names[0]):]  # word vectorizer is second
+    wn = names[1]
+    keep = [i for i, t in enumerate(wn) if len(t) > 2 and re.fullmatch(r"[A-Za-z' ]+", t)]
+    keep.sort(key=lambda i: w[i])
+    return [wn[i] for i in keep[::-1][:n]], [wn[i] for i in keep[:n]]
+
+
+def style_brief(person="", task="", k=8):
+    import numpy as np
+    recs = []
+    for l in MINE.read_text().splitlines():
+        if l.strip():
+            d = json.loads(l)
+            recs.append((d.get("text", ""), d.get("to", "")))
+    texts = [t for t, _ in recs]
+    v = TfidfVectorizer(sublinear_tf=True, stop_words="english").fit(texts + [task or person or "x"])
+    sim = (v.transform(texts) @ v.transform([task + " " + person]).T).toarray().ravel()
+    for i, (_, to) in enumerate(recs):
+        if person and to and person.lower() in to.lower():
+            sim[i] += 1.0  # sent to this person: rank first
+    top = [texts[i] for i in np.argsort(-sim)[:k]]
+    med = int(np.median([len(t.split()) for t in top]))
+    me, ai = fingerprint()
+    return (f"# Style brief: write as me, to {person or 'the recipient'}\n\nTask: {task}\n\n"
+            "## My real writing on similar things (imitate voice, rhythm, punctuation, NOT content)\n"
+            + "\n".join(f"- {t}" for t in top)
+            + f"\n\n## Relationship\n{person_get(person) if person else '(none)'}\n\n"
+            f"## Fingerprint\nMe-like phrases: {', '.join(me)}\nAI-like phrases to avoid: {', '.join(ai)}\n\n"
+            f"## Rules\n{RULES.format(med=med)}\n\n"
+            "## Instruction\nUsing this brief, write 6 candidates that differ from each other (different openings, lengths, angles), "
+            "then call score_as_me on all 6 and send the highest.\n")

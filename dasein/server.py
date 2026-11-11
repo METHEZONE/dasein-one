@@ -21,6 +21,12 @@ def relationship(person: str) -> str:
 
 
 @mcp.tool()
+def style_brief(person: str = "", task: str = "") -> str:
+    """Brief for writing as me: my 8 closest real messages, relationship note, fingerprint, rules. Call BEFORE drafting."""
+    return core.style_brief(person, task)
+
+
+@mcp.tool()
 def score_as_me(candidates: list[str]) -> dict:
     """Score each candidate draft 0-1 for how much it sounds like me. Write N drafts, call this, send the best."""
     s = core.score(candidates)

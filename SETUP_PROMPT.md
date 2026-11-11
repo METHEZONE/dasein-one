@@ -10,4 +10,4 @@ You are setting up dasein-one for me: a personal reward model that makes your dr
 
 7. Test once, do not send: take one person I recently wrote to, draft a short message to them. Call `relationship(person)`, write 4 candidates, call `score_as_me`, show me the 4 scores and the winner. Check `spread` in the result: if there is a `warning` ("low discrimination") or spread < 0.05, say the scores are not reliable and do not use them to pick.
 
-From now on: before drafting to a person call `relationship`; write 4 drafts and pick with `score_as_me`; after I send, call `learn(sent_text, person)` with the final text I actually sent.
+From now on: before drafting to a person call `style_brief(person, task)`, follow its instructions (6 different candidates), pick with `score_as_me`; after I send, call `learn(sent_text, person)` with the final text I actually sent.
