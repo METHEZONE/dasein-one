@@ -5,7 +5,8 @@ You are setting up dasein-one for me: a personal reward model that makes your dr
 3. After I say yes, use those tools to fetch only messages I wrote. Save each source as `~/.dasein/import/<source>.jsonl`, one JSON per line: `{"text": "...", "to": "recipient name", "ts": "YYYY-MM-DD", "thread_snippet": "..."}`. Never write anything to disk that I did not write, except `to`.
 4. `cd ~/dasein-one && uv run dasein ingest ~/.dasein/import` (creates `~/.dasein/mine.jsonl` and a people note per recipient with only the last_talk date), then `uv run dasein fit`. Report the held-out accuracy.
 5. Register: `claude mcp add dasein -- uv --directory ~/dasein-one run dasein mcp` (Codex: add the same command as an MCP server).
-6. Memory graph: if `gbrain` is installed or in your MCP list, tell me; otherwise people notes in `~/.dasein/people/` are used instead. Do not install anything else.
+6. Memory graph: if `gbrain` is installed, `relationship()` reads it automatically (via `gbrain search`). If not, people notes in `~/.dasein/people/` are used instead; ask me before installing anything.
+
 7. Test once, do not send: take one person I recently wrote to, draft a short message to them. Call `relationship(person)`, write 4 candidates, call `score_as_me`, show me the 4 scores and the winner.
 
 From now on: before drafting to a person call `relationship`; write 4 drafts and pick with `score_as_me`; after I send, call `learn(sent_text, person)` with the final text I actually sent.

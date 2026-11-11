@@ -7,7 +7,17 @@ mcp = FastMCP("dasein")
 @mcp.tool()
 def relationship(person: str) -> str:
     """Notes about a person (what they know about me, my promises, last talk). Use as context before drafting."""
-    return core.person_get(person)
+    out = core.person_get(person)
+    import shutil, subprocess
+    if shutil.which("gbrain"):  # optional: also read this person from the gbrain memory graph
+        try:
+            r = subprocess.run(["gbrain", "search", person], capture_output=True, text=True, timeout=20)
+            hits = [l for l in r.stdout.splitlines() if l.startswith("[0.")][:5]
+            if hits:
+                out += "\n\n## gbrain\n" + "\n".join(h[:300] for h in hits)
+        except Exception:
+            pass
+    return out
 
 
 @mcp.tool()
