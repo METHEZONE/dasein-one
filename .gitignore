@@ -4,3 +4,4 @@ __pycache__/
 scratch/
 *.egg-info/
 uv.lock
+tests/

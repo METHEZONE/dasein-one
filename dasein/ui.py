@@ -9,7 +9,7 @@ _fp_cache = {}
 
 
 def _chat(prompt, temp):
-    body = json.dumps({"model": LLM["model"], "max_tokens": 300, "temperature": temp,
+    body = json.dumps({"model": LLM["model"], "max_tokens": 220, "temperature": temp,
                        "chat_template_kwargs": {"enable_thinking": False},
                        "messages": [{"role": "user", "content": prompt}]}).encode()
     req = urllib.request.Request(LLM["url"].rstrip("/") + "/chat/completions", body, {"Content-Type": "application/json"})
@@ -32,7 +32,7 @@ def fingerprint():
             if not names[i].startswith("word__"):  # char n-grams stay in the model; chips/highlights show readable words
                 continue
             t = names[i][6:].strip().lower()
-            if len(t) < 2 or not re.search(r"\w", t) or any(t in o[0] or o[0] in t for o in out):
+            if len(t) < 3 or not re.search(r"\w", t) or core.is_function_word(t) or any(t in o[0] or o[0] in t for o in out):
                 continue
             out.append((t, float(coef[i])))
             if len(out) == n:
@@ -62,22 +62,39 @@ def _write(prompt, temp=0.9):
     return _chat(prompt, temp) if LLM["url"] else _agent(prompt)
 
 
-def generate(person, task):
+JOBS = {}
+
+
+def _brief(person, task):
+    """Same brief the MCP tool hands an agent: my closest real texts, who the person is to me, fingerprint, rules."""
+    b = core.style_brief(person, task)
+    return b[:b.index("## Instruction")] + "## Instruction\nWrite the message now. Output only the message, nothing else."
+
+
+def generate(job, person, task, n=4):
+    """Fills JOBS[job] as it goes so the page can show Plain AI first, then each Dasein draft with its score."""
+    J = JOBS[job]
+    try:
+        J["plain"] = {"text": _write(f"Write a short message{' to ' + person if person else ''}. What it should say: {task}\nOutput only the message.", 0.7)}
+        J["plain"]["score"] = round(100 * core.score([J["plain"]["text"]])[0])
+        brief = _brief(person, task)
+        for t in [0.8, 0.9, 1.0, 1.1][:n]:
+            c = _write(brief, t)
+            J["all"].append({"text": c, "score": round(100 * core.score([c])[0])})
+        J["pick"] = max(J["all"], key=lambda x: x["score"])
+    except Exception as e:
+        J["error"] = str(e)
+    J["done"] = True
+
+
+def start_job(person, task):
+    import uuid
     if not (LLM["url"] or LLM["agent"]):
         return {"error": "no_llm"}
-    from concurrent.futures import ThreadPoolExecutor
-    plain_p = f"Write a short message{' to ' + person if person else ''}. What it should say: {task}\nOutput only the message, plain text."
-    brief = core.style_brief(person, task)
-    cand_p = (brief + "\nWrite the 6 candidates now. Return ONLY a JSON array of 6 strings, no commentary.")
-    with ThreadPoolExecutor(2) as ex:  # plain AI and dasein run side by side on the same agent
-        fp, fc = ex.submit(_write, plain_p, 0.7), ex.submit(_write, cand_p, 1.0)
-        plain, raw = fp.result(), fc.result()
-    m = re.search(r"\[.*\]", raw, re.S)
-    try:
-        cands = [c.strip() for c in json.loads(m.group()) if isinstance(c, str) and c.strip()] if m else []
-    except Exception:
-        cands = []
-    return {"plain": plain, "candidates": cands or [raw], "writer": LLM["agent"] or LLM["model"]}
+    job = uuid.uuid4().hex[:8]
+    JOBS[job] = {"plain": None, "all": [], "pick": None, "done": False, "n": 4}
+    threading.Thread(target=generate, args=(job, person, task), daemon=True).start()
+    return {"job": job}
 
 
 def score_pack(plain, cands):
@@ -85,7 +102,7 @@ def score_pack(plain, cands):
     sc = [round(100 * x) for x in s]
     best = max(range(len(cands)), key=lambda i: sc[i + 1])
     return {"plain": {"text": plain, "score": sc[0]}, "pick": {"text": cands[best], "score": sc[best + 1]},
-            "all": [{"text": c, "score": sc[i + 1]} for i, c in enumerate(cands)]}
+            "all": [{"text": c, "score": sc[i + 1]} for i, c in enumerate(cands)], "done": True}
 
 
 def refit():
@@ -148,8 +165,11 @@ class H(BaseHTTPRequestHandler):
                 self._send(state())
             elif p == "/api/fingerprint":
                 self._send(fingerprint() if core.MODEL.exists() else {"pos": [], "neg": [], "hl_pos": [], "hl_neg": []})
-            elif p == "/api/people":
-                self._send([f.stem for f in sorted(core.PEOPLE.glob("*.md"))] if core.PEOPLE.exists() else [])
+            elif p == "/api/people":  # local notes + gbrain person pages
+                local = [f.stem for f in sorted(core.PEOPLE.glob("*.md"))] if core.PEOPLE.exists() else []
+                self._send(sorted(set(local) | set(core.gbrain_people()), key=str.lower))
+            elif p == "/api/job":
+                self._send(JOBS.get(self.path.split("id=")[-1], {"error": "no such job"}))
             else:
                 self._send({"error": "not found"}, 404)
         except Exception as e:
@@ -160,8 +180,7 @@ class H(BaseHTTPRequestHandler):
         try:
             d = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
             if p == "/api/generate":
-                g = generate(d.get("person", ""), d.get("task", ""))
-                self._send(g if "error" in g else score_pack(g["plain"], g["candidates"]))
+                self._send(start_job(d.get("person", ""), d.get("task", "")))
             elif p == "/api/score":  # paste mode: first text = plain baseline, rest = candidates
                 t = [x.strip() for x in d.get("texts", []) if x.strip()]
                 self._send(score_pack(t[0], t[1:]) if len(t) > 1 else {"error": "need at least 2 texts"})

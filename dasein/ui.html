@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Dasein</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='10' r='6' fill='%23141414'/%3E%3Cpath d='M4 31c0-7.2 5.4-12 12-12s12 4.8 12 12z' fill='%23141414'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="https://api.fontshare.com/v2/css?f[]=satoshi@300,400,500,700&display=swap">
 <style>
 :root{--ink:#141414;--mute:#8d8d89;--hair:#e4e4e0;--paper:#fff;--mono:ui-monospace,"SF Mono",Menlo,monospace;--e:cubic-bezier(.2,.7,.2,1)}
@@ -73,16 +74,17 @@ svg{width:100%;height:70px;display:block;overflow:visible}
 <figure class="up" style="animation-delay:.3s">
  <figcaption class="mono" style="border-top:1px solid var(--hair);padding-top:12px"><span><b>Fig. 3</b> &nbsp;Before / after</span><span class="mute" id="gmsg"></span></figcaption>
  <div class="row">
-  <div><label class="mono">to</label><select id="person"><option value="">no one</option></select></div>
+  <div><label class="mono">to</label><input id="person" list="people" placeholder="anyone in your brain"><datalist id="people"></datalist></div>
   <div><label class="mono">what to write</label><input id="task" placeholder="tell him I can't make Friday, offer Monday"></div>
  </div>
  <div id="paste" class="hide" style="margin-top:24px"><label class="mono">No LLM attached. Paste texts separated by blank lines; the first is the plain-AI baseline.</label><textarea id="pastebox"></textarea></div>
  <div style="margin-top:24px"><button id="go">write it</button></div>
  <div class="ba hide" id="ba">
-  <div><div class="mono mute">Plain AI</div><div class="sc" id="s_plain"></div><div class="mono mute">dasein score</div><div class="txt" id="t_plain"></div></div>
-  <div><div class="mono">Dasein pick</div><div class="sc" id="s_pick"></div><div class="mono mute">dasein score</div><div class="txt" id="t_pick" contenteditable="true"></div>
+  <div><div class="mono mute">Plain AI <span style="opacity:.7">· same model, no Dasein</span></div><div class="sc" id="s_plain"></div><div class="mono mute">dasein score</div><div class="txt" id="t_plain"></div></div>
+  <div><div class="mono">Dasein <span class="mute" id="pickof"></span></div><div class="sc" id="s_pick"></div><div class="mono mute">dasein score</div><div class="txt" id="t_pick" contenteditable="true"></div>
    <div style="margin-top:22px"><button id="sent">I sent this</button> <span class="mono mute">edit first if you changed it</span></div></div>
  </div>
+ <div class="mono mute" id="drafts" style="margin-top:22px"></div>
  <div class="mono mute hide" id="legend" style="margin-top:20px"><mark style="background:var(--hair);color:var(--ink);padding:0 3px">you</mark> &nbsp; <s>AI</s></div>
 </figure>
 
@@ -217,16 +219,23 @@ function hl(text){const lo=text.toLowerCase(),tag=new Array(text.length).fill(0)
  for(const[t,k]of all){let i=-1;while((i=lo.indexOf(t,i+1))>=0){const b=(i==0||!/\w/.test(lo[i-1]))&&(i+t.length>=lo.length||!/\w/.test(lo[i+t.length]));if(b&&tag.slice(i,i+t.length).every(x=>!x))tag.fill(k,i,i+t.length)}}
  let o='',cur=0,buf='';const fl=()=>{if(buf)o+=cur==1?`<mark>${esc(buf)}</mark>`:cur==2?`<s>${esc(buf)}</s>`:esc(buf);buf=''};
  for(let i=0;i<text.length;i++){if(tag[i]!=cur){fl();cur=tag[i]}buf+=text[i]}fl();return o}
-async function people(){const p=await J('/api/people');$('person').innerHTML='<option value="">no one</option>'+p.map(x=>`<option>${x}</option>`).join('')}
+async function people(){const p=await J('/api/people');$('people').innerHTML=p.map(x=>`<option value="${esc(x)}">`).join('')}
+const show=(k,r)=>{$('s_'+k).textContent=r?r.score:'…';$('t_'+k).innerHTML=r?hl(r.text):'<span class="mute">writing…</span>'};
 $('go').onclick=async()=>{
- $('go').disabled=true;busy=true;$('gmsg').textContent='writing 7 drafts, scoring each';
- let r;try{const st=await J('/api/status');
-  r=st.llm?await J('/api/generate',{person:person(),task:$('task').value}):await J('/api/score',{texts:$('pastebox').value.split(/\n\s*\n/)})}catch(e){r={error:String(e)}}
- $('go').disabled=false;busy=false;
- if(r.error){$('gmsg').textContent=r.error;return}
- $('gmsg').textContent=`best of ${r.all.length}`;
- for(const k of['plain','pick']){$('s_'+k).textContent=r[k].score;$('t_'+k).innerHTML=hl(r[k].text)}
- const b=$('ba');b.classList.remove('hide');$('legend').classList.remove('hide');b.style.animation='none';b.offsetWidth;b.style.animation='up 1s var(--e) both'};
+ $('go').disabled=true;busy=true;$('gmsg').textContent='plain AI first, then 4 Dasein drafts';
+ const b=$('ba');b.classList.remove('hide');$('legend').classList.remove('hide');show('plain');show('pick');$('drafts').textContent='';$('pickof').textContent='';
+ const done=()=>{$('go').disabled=false;busy=false};
+ try{const st=await J('/api/status');
+  if(!st.llm){const r=await J('/api/score',{texts:$('pastebox').value.split(/\n\s*\n/)});done();if(r.error){$('gmsg').textContent=r.error;return}show('plain',r.plain);show('pick',r.pick);$('gmsg').textContent=`best of ${r.all.length}`;return}
+  const{job,error}=await J('/api/generate',{person:person(),task:$('task').value});if(error)throw error;
+  const t0=Date.now();
+  const tick=async()=>{const r=await J('/api/job?id='+job);const s=Math.round((Date.now()-t0)/1000);
+   if(r.plain)show('plain',r.plain);
+   if(r.all.length){const best=r.all.reduce((a,x)=>x.score>a.score?x:a);show('pick',best);$('pickof').textContent=`· best of ${r.all.length}`;
+    $('drafts').innerHTML='drafts scored: '+r.all.map(x=>x===best?`<b style="color:var(--ink);font-weight:400">${x.score}</b>`:x.score).join(' · ')}
+   $('gmsg').textContent=r.error?r.error:r.done?`done in ${s}s`:!r.plain?`plain AI writing… ${s}s`:`Dasein draft ${r.all.length+1}/${r.n}… ${s}s`;
+   if(r.done||r.error){done();return}setTimeout(tick,1000)};tick()}
+ catch(e){done();$('gmsg').textContent=String(e)}};
 $('sent').onclick=async()=>{const r=await J('/api/learn',{text:$('t_pick').innerText,person:person()});$('lc').textContent=r.learn_count;$('sent').textContent='learned';setTimeout(()=>$('sent').textContent='I sent this',1500);poll()};
 $('refit').onclick=async()=>{dipUntil=performance.now()+1900;await J('/api/refit',{});poll()};
 people();loadFP();poll();setInterval(poll,1000);

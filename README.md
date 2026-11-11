@@ -4,12 +4,14 @@ RLHF taught models to write for everyone. dasein-one does RLHF for one person.
 
 ## Paste this into your agent
 
-Open Claude Code or Codex (with your Gmail/Slack connectors on) and paste the contents of [SETUP_PROMPT.md](SETUP_PROMPT.md). It installs, asks consent, imports, fits, registers, and tests.
+Read https://github.com/METHEZONE/dasein-one/blob/main/SETUP_PROMPT.md and do it.
+
+Or open Claude Code or Codex (with your Gmail/Slack connectors on) and paste the contents of [SETUP_PROMPT.md](SETUP_PROMPT.md). It installs, asks consent, imports, fits, registers, and tests.
 
 ## Setup (manual)
 
 ```bash
-git clone <this repo> && cd dasein-one && uv sync          # 1. install
+git clone https://github.com/METHEZONE/dasein-one && cd dasein-one && uv sync          # 1. install
 uv run dasein fit --mine my_writing.txt                     # 2. fit (one text per line, .txt or .jsonl)
 claude mcp add dasein -- uv --directory $PWD run dasein mcp # 3. plug into Claude Code
 ```
