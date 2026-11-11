@@ -1,14 +1,15 @@
-import json, pickle, random, re, urllib.request
+import json, os, pickle, random, re, urllib.request
 from pathlib import Path
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import FeatureUnion, make_pipeline
 
-HOME = Path.home() / ".dasein"
+HOME = Path(os.environ.get("DASEIN_HOME") or Path.home() / ".dasein")
 MODEL = HOME / "reward.pkl"
 MINE = HOME / "mine.jsonl"
+OTHERS = HOME / "others.jsonl"  # optional: other people's messages (e.g. what my correspondents sent me)
 PEOPLE = HOME / "people"
-_BUNDLED = [Path(__file__).parent / "ai_generic.jsonl", Path(__file__).parent.parent / "data" / "ai_generic.jsonl"]
+_DATA = Path(__file__).parent.parent / "data"
 
 
 def load_lines(path):
@@ -25,7 +26,19 @@ def load_lines(path):
 
 
 def ai_generic():
-    return load_lines(next(p for p in _BUNDLED if p.exists()))
+    return load_lines(_DATA / "ai_generic.jsonl")
+
+
+def other_humans():
+    """Bundled texts written by other humans + (optional) my correspondents' messages from ingest."""
+    out = load_lines(_DATA / "other_humans.jsonl")
+    if OTHERS.exists():
+        out += load_lines(OTHERS)
+    return out
+
+
+def negatives():
+    return ai_generic() + other_humans()
 
 
 def rewrite(endpoint, model, text):
@@ -96,7 +109,7 @@ def person_has(p):
 
 def retrain():
     mine = load_lines(MINE)
-    save(fit(mine, ai_generic()))
+    save(fit(mine, negatives()))
     return len(mine)
 
 
@@ -114,3 +127,11 @@ def learn(sent_text, person=""):
         retrain(); c = 0
     n.write_text(str(c))
     return c
+
+
+def spread_warning(s):
+    """Low-discrimination guard: tiny spread or everything high means the scores can't pick a winner."""
+    sp = max(s) - min(s)
+    if len(s) > 1 and (sp < 0.05 or min(s) >= 0.9):
+        return "low discrimination - scores not reliable"
+    return ""

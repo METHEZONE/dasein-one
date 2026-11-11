@@ -14,6 +14,7 @@ def main():
     sub.add_parser("mcp")
     i = sub.add_parser("ingest")
     i.add_argument("folders", nargs="+")
+    i.add_argument("--others", action="store_true", help="also use thread_snippet (messages from my correspondents) as other-people negatives")
     i.add_argument("--me", default="", help="my name/email, to pick my side of chats and mbox")
     p = sub.add_parser("person")
     ps = p.add_subparsers(dest="pcmd", required=True)
@@ -21,7 +22,7 @@ def main():
     s = ps.add_parser("show"); s.add_argument("name")
     x = a.parse_args()
     if x.cmd == "ingest":
-        n, p = ingest(x.folders, x.me)
+        n, p = ingest(x.folders, x.me, x.others)
         print(f"{n} texts of mine -> {core.MINE}; {p} people notes")
     elif x.cmd == "mcp":
         from .server import mcp
@@ -36,15 +37,23 @@ def main():
         random.seed(0); random.shuffle(mine)
         k = int(len(mine) * 0.8)
         tr, te = mine[:k], mine[k:]
-        neg = core.ai_generic(); random.shuffle(neg)
-        nk = int(len(neg) * 0.8)
-        ntr, nte = neg[:nk], neg[nk:]
+        def split(l):
+            l = l[:]; random.shuffle(l); k = int(len(l) * 0.8)
+            return l[:k], l[k:]
+        atr, ate = split(core.ai_generic())
+        otr, ote = split(core.other_humans())
+        ntr = atr + otr
         if x.rewrite_endpoint:
             n = x.rewrite_n or min(len(tr), 100)
             ntr += [core.rewrite(x.rewrite_endpoint, x.rewrite_model, t) for t in tr[:n]]
         m = core.fit(tr, ntr)
-        s = core.score(te + nte, m)
-        ok = sum(v > .5 for v in s[:len(te)]) + sum(v <= .5 for v in s[len(te):])
-        print(f"held-out accuracy: {ok}/{len(s)} = {ok/len(s):.3f}")
-        core.save(m := core.fit(mine, ntr + nte))
+        for label, neg in (("you vs AI", ate), ("you vs other people", ote)):
+            if not neg:
+                print(f"{label}: no data"); continue
+            s, sn = core.score(te, m), core.score(neg, m)
+            ok = sum(v > .5 for v in s) + sum(v <= .5 for v in sn)
+            from sklearn.metrics import roc_auc_score
+            auc = roc_auc_score([1] * len(s) + [0] * len(sn), s + sn)
+            print(f"{label}: held-out accuracy {ok}/{len(s)+len(sn)} = {ok/(len(s)+len(sn)):.3f}, AUC {auc:.3f}")
+        core.save(core.fit(mine, ntr + ate + ote))
         print(f"saved {core.MODEL}")

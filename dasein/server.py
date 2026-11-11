@@ -25,7 +25,10 @@ def score_as_me(candidates: list[str]) -> dict:
     """Score each candidate draft 0-1 for how much it sounds like me. Write N drafts, call this, send the best."""
     s = core.score(candidates)
     best = max(range(len(s)), key=s.__getitem__)
-    return {"scores": s, "best_index": best, "best": candidates[best]}
+    r = {"scores": s, "best_index": best, "best": candidates[best], "spread": max(s) - min(s)}
+    if w := core.spread_warning(s):
+        r["warning"] = w
+    return r
 
 
 @mcp.tool()

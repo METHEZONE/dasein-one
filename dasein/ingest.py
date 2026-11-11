@@ -50,12 +50,16 @@ def _items(path, me):
                 yield para.strip(), "", ""
 
 
-def ingest(folders, me=""):
-    mine, last = [], {}
+def ingest(folders, me="", others=False):
+    mine, last, oth = [], {}, []
     for f in folders:
         for p in sorted(Path(f).expanduser().rglob("*")):
             if p.suffix not in (".jsonl", ".mbox", ".txt", ".md") or p.name == "mine.jsonl":
                 continue
+            if others and p.suffix == ".jsonl":  # what my correspondents wrote = "other people" negatives
+                for l in p.read_text().splitlines():
+                    if l.strip():
+                        oth.append(re.sub(r"\s+", " ", json.loads(l).get("thread_snippet") or "").strip())
             for text, to, day in _items(p, me):
                 text = re.sub(r"\s+", " ", text).strip()
                 if len(text) < 20:
@@ -66,6 +70,9 @@ def ingest(folders, me=""):
     mine = list(dict.fromkeys(mine))
     core.HOME.mkdir(parents=True, exist_ok=True)
     core.MINE.write_text("".join(json.dumps({"text": t}) + "\n" for t in mine))
+    oth = [t for t in dict.fromkeys(oth) if len(t) >= 20 and t not in set(mine)]
+    if oth:
+        core.OTHERS.write_text("".join(json.dumps({"text": t}) + "\n" for t in oth))
     for name, day in last.items():  # skeleton only: date, no guessed content
         if day and not core.person_has(name):
             core.person_set(name, "last_talk", day)
