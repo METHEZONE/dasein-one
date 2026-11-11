@@ -14,8 +14,9 @@ def main():
     sub.add_parser("mcp")
     u = sub.add_parser("ui")
     u.add_argument("--port", type=int, default=8799)
-    u.add_argument("--llm", help="OpenAI-compatible base URL, e.g. http://127.0.0.1:18080/v1 (omit = paste candidates)")
+    u.add_argument("--llm", help="optional OpenAI-compatible base URL; default writer is your own agent CLI (claude, else codex)")
     u.add_argument("--model", default="default")
+    u.add_argument("--agent", choices=["claude", "codex"], help="force which agent CLI writes")
     i = sub.add_parser("ingest")
     i.add_argument("folders", nargs="+")
     i.add_argument("--others", action="store_true", help="also use thread_snippet (messages from my correspondents) as other-people negatives")
@@ -31,7 +32,7 @@ def main():
         print(f"{n} texts of mine -> {core.MINE}; {p} people notes")
     elif x.cmd == "ui":
         from .ui import serve
-        serve(x.port, x.llm, x.model)
+        serve(x.port, x.llm, x.model, x.agent)
     elif x.cmd == "mcp":
         from .server import mcp
         mcp.run()

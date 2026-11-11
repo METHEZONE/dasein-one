@@ -3,7 +3,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from . import core
 
-LLM = {"url": None, "model": "default"}
+LLM = {"url": None, "model": "default", "agent": None, "bin": None}
 _lock = threading.Lock()
 _fp_cache = {}
 
@@ -45,16 +45,39 @@ def fingerprint():
     return v
 
 
+def _agent(prompt):
+    """The user's own agent writes: Claude Code (`claude -p`) or Codex (`codex exec`), whichever is installed and logged in."""
+    import os, shutil, subprocess, tempfile
+    cwd = tempfile.mkdtemp()
+    if LLM["agent"] == "claude":
+        r = subprocess.run([LLM["bin"], "-p", "--setting-sources", ""], input=prompt, capture_output=True, text=True, timeout=300, cwd=cwd)
+        return r.stdout.strip()
+    out = os.path.join(cwd, "out.txt")
+    subprocess.run([LLM["bin"], "exec", "--skip-git-repo-check", "--output-last-message", out, prompt],
+                   capture_output=True, text=True, timeout=300, cwd=cwd, stdin=subprocess.DEVNULL)
+    return open(out).read().strip() if os.path.exists(out) else ""
+
+
+def _write(prompt, temp=0.9):
+    return _chat(prompt, temp) if LLM["url"] else _agent(prompt)
+
+
 def generate(person, task):
-    if not LLM["url"]:
+    if not (LLM["url"] or LLM["agent"]):
         return {"error": "no_llm"}
-    base = f"Write a short message in first person, as me{' to ' + person if person else ''}. What it should say: {task}\nOutput only the message."
-    notes = core.person_get(person) if person and core.person_has(person) else ""
-    ctx = f"\n\nWhat I know about this relationship:\n{notes}" if notes else ""
-    plain = _chat(base, 0.7)
-    temps = [0.7, 0.8, 0.9, 1.0, 1.1, 1.2]
-    cands = [_chat(base + ctx, t) for t in temps]
-    return {"plain": plain, "candidates": cands}
+    from concurrent.futures import ThreadPoolExecutor
+    plain_p = f"Write a short message{' to ' + person if person else ''}. What it should say: {task}\nOutput only the message, plain text."
+    brief = core.style_brief(person, task)
+    cand_p = (brief + "\nWrite the 6 candidates now. Return ONLY a JSON array of 6 strings, no commentary.")
+    with ThreadPoolExecutor(2) as ex:  # plain AI and dasein run side by side on the same agent
+        fp, fc = ex.submit(_write, plain_p, 0.7), ex.submit(_write, cand_p, 1.0)
+        plain, raw = fp.result(), fc.result()
+    m = re.search(r"\[.*\]", raw, re.S)
+    try:
+        cands = [c.strip() for c in json.loads(m.group()) if isinstance(c, str) and c.strip()] if m else []
+    except Exception:
+        cands = []
+    return {"plain": plain, "candidates": cands or [raw], "writer": LLM["agent"] or LLM["model"]}
 
 
 def score_pack(plain, cands):
@@ -101,7 +124,8 @@ def state():
     n = core.HOME / "learn_count"
     st["history"] = json.loads(h.read_text()) if h.exists() else []
     st["learn_count"] = int(n.read_text() or 0) if n.exists() else 0
-    st["llm"] = bool(LLM["url"])
+    st["llm"] = bool(LLM["url"] or LLM["agent"])
+    st["writer"] = LLM["agent"] or LLM["model"]
     st["has_model"] = core.MODEL.exists()
     return st
 
@@ -151,7 +175,14 @@ class H(BaseHTTPRequestHandler):
             self._send({"error": str(e)}, 500)
 
 
-def serve(port, llm=None, model="default"):
+def serve(port, llm=None, model="default", agent=None):
+    import os, shutil
     LLM.update(url=llm, model=model)
-    print(f"dasein ui: http://127.0.0.1:{port}  (local only; llm={llm or 'paste mode'})")
+    if not llm:  # default writer = the user's own agent CLI (their login, their model)
+        for name, env in (("claude", "DASEIN_CLAUDE"), ("codex", "DASEIN_CODEX")):
+            b = os.environ.get(env) or shutil.which(name)
+            if (agent in (None, name)) and b:
+                LLM.update(agent=name, bin=b)
+                break
+    print(f"dasein ui: http://127.0.0.1:{port}  (local only; writer={llm or LLM['agent'] or 'paste mode'})")
     ThreadingHTTPServer(("127.0.0.1", port), H).serve_forever()
