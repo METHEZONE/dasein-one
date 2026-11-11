@@ -6,6 +6,7 @@ You are setting up dasein-one for me: a personal reward model that makes your dr
 4. `cd ~/dasein-one && uv run dasein ingest ~/.dasein/import` (creates `~/.dasein/mine.jsonl` and a people note per recipient with only the last_talk date), then `uv run dasein fit`. Report the held-out accuracy.
 5. Register: `claude mcp add dasein -- uv --directory ~/dasein-one run dasein mcp` (Codex: add the same command as an MCP server).
 6. Memory graph: if `gbrain` is installed, `relationship()` reads it automatically (via `gbrain search`). If not, people notes in `~/.dasein/people/` are used instead; ask me before installing anything.
+   If gbrain is missing and I say yes to "want a personal gbrain memory graph?", the official install is: needs Bun 1.4.4+, `bun install -g github:garrytan/gbrain#stable`, then `gbrain setup claude-code`. (Not the npm package named gbrain, which is different.)
 
 7. Test once, do not send: take one person I recently wrote to, draft a short message to them. Call `relationship(person)`, write 4 candidates, call `score_as_me`, show me the 4 scores and the winner.
 

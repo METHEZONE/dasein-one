@@ -30,3 +30,5 @@ Own files instead of connectors: `dasein ingest <folders> --me <name-or-email>` 
 ## Limits
 
 No weights are trained. This is an inference-time reward model plus best-of-n, not LoRA/DPO (next step). The reward is a style classifier: it catches "sounds like an AI", not "is a good message". Quality scales with how much of your writing you feed it.
+
+Prior work: DITTO (Shaikh et al., ICLR 2025) treats a user's own text as preferred over LLM output; dasein-one adds per-recipient relationship state and a continuous sent-mail reward loop.
