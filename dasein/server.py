@@ -23,3 +23,10 @@ def remember(person: str, field: str, text: str) -> str:
     """Update a relationship note. field: knows_about_me | my_promises | last_talk | notes."""
     core.person_set(person, field, text)
     return "ok"
+
+
+@mcp.tool()
+def learn(sent_text: str, person: str = "") -> str:
+    """Call after I actually send a message: adds the final text as a positive example, updates last_talk; refits every 20."""
+    c = core.learn(sent_text, person)
+    return f"learned; {c}/20 until refit"

@@ -3,7 +3,7 @@ name = "dasein-one"
 version = "0.1.0"
 description = "RLHF for one person: a personal reward model + MCP server"
 requires-python = ">=3.10"
-dependencies = ["scikit-learn", "mcp"]
+dependencies = ["scikit-learn", "mcp<2"]
 [project.scripts]
 dasein = "dasein.cli:main"
 [build-system]

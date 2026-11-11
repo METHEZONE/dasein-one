@@ -6,6 +6,7 @@ from sklearn.pipeline import FeatureUnion, make_pipeline
 
 HOME = Path.home() / ".dasein"
 MODEL = HOME / "reward.pkl"
+MINE = HOME / "mine.jsonl"
 PEOPLE = HOME / "people"
 _BUNDLED = [Path(__file__).parent / "ai_generic.jsonl", Path(__file__).parent.parent / "data" / "ai_generic.jsonl"]
 
@@ -87,3 +88,29 @@ def person_set(p, field, text):
                 d[cur] += l + "\n"
     d[field] = text.strip() + "\n"
     f.write_text(f"# {p}\n\n" + "\n".join(f"## {k}\n{v.strip()}\n" for k, v in d.items()))
+
+
+def person_has(p):
+    return (PEOPLE / f"{_slug(p)}.md").exists()
+
+
+def retrain():
+    mine = load_lines(MINE)
+    save(fit(mine, ai_generic()))
+    return len(mine)
+
+
+def learn(sent_text, person=""):
+    """Add a text I actually sent as a positive; refit every 20 additions."""
+    import datetime
+    HOME.mkdir(parents=True, exist_ok=True)
+    with MINE.open("a") as f:
+        f.write(json.dumps({"text": sent_text.strip()}) + "\n")
+    n = HOME / "learn_count"
+    c = int(n.read_text() or 0) + 1 if n.exists() else 1
+    if person:
+        person_set(person, "last_talk", datetime.date.today().isoformat())
+    if c >= 20:
+        retrain(); c = 0
+    n.write_text(str(c))
+    return c
