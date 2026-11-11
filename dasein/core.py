@@ -81,9 +81,46 @@ def _slug(p):
     return re.sub(r"[^a-z0-9가-힣]+", "-", p.lower()).strip("-")
 
 
+def _gbrain(*args):
+    import shutil, subprocess
+    if not shutil.which("gbrain"):
+        return ""
+    try:
+        return subprocess.run(["gbrain", *args], capture_output=True, text=True, timeout=20).stdout
+    except Exception:
+        return ""
+
+
+_gb_people = {}
+
+
+def gbrain_people():
+    """{display name: slug} for person pages in gbrain (empty if gbrain isn't installed)."""
+    if not _gb_people:
+        for l in _gbrain("list", "--type", "person", "--limit", "5000").splitlines():
+            f = l.split("\t")
+            if len(f) >= 4 and f[1] == "person":
+                _gb_people[f[3].strip()] = f[0]
+    return _gb_people
+
+
+def gbrain_page(p, n=1800):
+    slug = gbrain_people().get(p)
+    if not slug:
+        return ""
+    t = _gbrain("get", slug)
+    t = re.sub(r"\nhandles:\n(  - .*\n)+", "\n", t)  # no phone numbers / emails in prompts
+    t = re.sub(r"\n## [^\n]+\s*(?=\n## |\Z)", "", t)  # drop empty sections
+    return re.sub(r"\n{3,}", "\n\n", t).strip()[:n]
+
+
 def person_get(p):
     f = PEOPLE / f"{_slug(p)}.md"
-    return f.read_text() if f.exists() else f"# {p}\n(no notes yet)"
+    out = f.read_text() if f.exists() else ""
+    gb = gbrain_page(p)
+    if gb:
+        out += ("\n\n" if out else "") + "## From my gbrain memory graph\n" + gb
+    return out or f"# {p}\n(no notes yet)"
 
 
 def person_set(p, field, text):
@@ -188,6 +225,15 @@ def spread_warning(s):
     return ""
 
 
+FRAGMENTS = {"don", "doesn", "didn", "isn", "aren", "wasn", "weren", "won", "wouldn", "couldn", "shouldn", "haven", "hasn", "ll", "ve", "re"}
+
+
+def is_function_word(t):
+    """Stopwords and contraction stubs: real signal for the model, meaningless as a 'fingerprint' to a human."""
+    from sklearn.feature_extraction.text import ENGLISH_STOP_WORDS
+    return all(w in ENGLISH_STOP_WORDS or w in FRAGMENTS for w in t.split())
+
+
 RULES = """1. Use only facts present in the task/context. Never invent names, numbers, dates, promises.
 2. Do not name emotions ("I'm excited/grateful/thrilled"). Show them the way my examples do, or skip them.
 3. Do not end with a summary, a moral, or a polite wrap-up line unless my examples do.
@@ -204,7 +250,7 @@ def fingerprint(n=15):
     names = [(a.get_feature_names_out()) for _, a in feats.transformer_list]
     w = lr.coef_[0][len(names[0]):]  # word vectorizer is second
     wn = names[1]
-    keep = [i for i, t in enumerate(wn) if len(t) > 2 and re.fullmatch(r"[A-Za-z' ]+", t)]
+    keep = [i for i, t in enumerate(wn) if len(t) > 2 and re.fullmatch(r"[A-Za-z' ]+", t) and not is_function_word(t)]
     keep.sort(key=lambda i: w[i])
     return [wn[i] for i in keep[::-1][:n]], [wn[i] for i in keep[:n]]
 
@@ -228,8 +274,9 @@ def style_brief(person="", task="", k=8):
     return (f"# Style brief: write as me, to {person or 'the recipient'}\n\nTask: {task}\n\n"
             "## My real writing on similar things (imitate voice, rhythm, punctuation, NOT content)\n"
             + "\n".join(f"- {t}" for t in top)
-            + f"\n\n## Relationship\n{person_get(person) if person else '(none)'}\n\n"
-            f"## Fingerprint\nMe-like phrases: {', '.join(me)}\nAI-like phrases to avoid: {', '.join(ai)}\n\n"
+            + f"\n\n## Who they are to me\n{person_get(person) if person else '(nobody specific)'}\n"
+            + ("Infer how close we are from this (old friend, investor, someone I just met) and write exactly how I'd talk to them.\n\n" if person else "\n")
+            + f"## Fingerprint\nMe-like phrases: {', '.join(me)}\nAI-like phrases to avoid: {', '.join(ai)}\n\n"
             f"## Rules\n{RULES.format(med=med)}\n\n"
             "## Instruction\nUsing this brief, write 6 candidates that differ from each other (different openings, lengths, angles), "
             "then call score_as_me on all 6 and send the highest.\n")
