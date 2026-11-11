@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>dasein</title>
+<style>
+:root{--bg:#0b0b0c;--card:#141416;--line:#232327;--tx:#f2f2f0;--mu:#8b8b92;--or:#ff5a1f;--orsoft:rgba(255,90,31,.18)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:Satoshi,Pretendard,"Pretendard Variable","Apple SD Gothic Neo",-apple-system,"Helvetica Neue",sans-serif;line-height:1.5;-webkit-font-smoothing:antialiased}
+main{max-width:980px;margin:0 auto;padding:40px 20px 120px}
+h1{font-size:15px;letter-spacing:.2em;text-transform:uppercase;color:var(--or);margin:0 0 6px}
+.sub{color:var(--mu);margin:0 0 48px}
+section{margin-bottom:64px}
+h2{font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--mu);font-weight:500;margin:0 0 18px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:24px;transition:all .4s}
+.steps{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.step{padding:6px 14px;border-radius:99px;border:1px solid var(--line);color:var(--mu);font-size:14px;transition:all .4s}
+.step.on{border-color:var(--or);color:var(--tx);background:var(--orsoft)}
+.step.done{color:var(--tx)}
+.bar{height:6px;background:var(--line);border-radius:9px;overflow:hidden}
+.bar i{display:block;height:100%;width:0;background:var(--or);transition:width .6s ease}
+.counts{display:flex;gap:28px;flex-wrap:wrap;margin:16px 0 0;color:var(--mu);font-size:14px}
+.counts b{color:var(--tx);font-size:20px;font-weight:600}
+.big{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:24px}
+.m .n{font-size:72px;font-weight:700;line-height:1;letter-spacing:-.03em;color:var(--or)}
+.m .n small{font-size:28px;color:var(--mu);font-weight:500}
+.m .l{color:var(--mu);margin-top:8px}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{padding:6px 12px;border-radius:99px;font-size:15px;animation:pop .5s both}
+.chip.p{background:var(--orsoft);color:#ffb08f;border:1px solid rgba(255,90,31,.5)}
+.chip.n{background:#1c1c1f;color:#9a9aa1;border:1px solid var(--line);text-decoration:line-through;text-decoration-color:#55555c}
+@keyframes pop{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.lab{font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--mu);margin-bottom:10px}
+input,select,textarea{width:100%;background:#0f0f11;color:var(--tx);border:1px solid var(--line);border-radius:12px;padding:12px 14px;font:inherit;font-size:16px}
+textarea{min-height:90px;resize:vertical}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--or)}
+.row{display:grid;grid-template-columns:200px 1fr;gap:12px;margin-bottom:12px}
+button{background:var(--or);color:#fff;border:0;border-radius:12px;padding:12px 22px;font:inherit;font-weight:600;font-size:16px;cursor:pointer;transition:all .2s}
+button:hover{filter:brightness(1.1)}button:disabled{opacity:.4;cursor:wait}
+button.ghost{background:transparent;border:1px solid var(--line);color:var(--tx)}
+.score{font-size:64px;font-weight:700;letter-spacing:-.03em;line-height:1}
+.score small{font-size:16px;color:var(--mu);font-weight:500;letter-spacing:0;margin-left:6px}
+.txt{margin-top:14px;font-size:17px;white-space:pre-wrap}
+.txt mark{background:var(--orsoft);color:#ffb08f;border-radius:4px;padding:0 2px}
+.txt s{color:#7a7a82;text-decoration-color:#6a6a72}
+.pick{border-color:var(--or);box-shadow:0 0 40px -12px var(--or)}.pick .score{color:var(--or)}
+.hide{display:none}
+.msg{color:var(--mu);margin:12px 0 0;font-size:14px}
+.cnt{font-size:56px;font-weight:700;letter-spacing:-.03em}.cnt small{color:var(--mu);font-size:20px;font-weight:500}
+svg{width:100%;height:80px;display:block}
+@media(max-width:700px){.two,.big{grid-template-columns:1fr}.row{grid-template-columns:1fr}.m .n{font-size:56px}}
+</style></head><body><main>
+<h1>dasein</h1>
+<p class="sub">A reward model of how you write. It runs on this machine, learns from what you send, and sends nothing out.</p>
+
+<section><h2>1 &nbsp; Learning you</h2>
+<div class="card">
+ <div class="steps" id="steps"></div>
+ <div class="bar"><i id="bar"></i></div>
+ <div class="counts" id="counts"></div>
+ <div class="big">
+  <div class="m"><div class="n" id="m_ai">--</div><div class="l">you vs AI</div></div>
+  <div class="m"><div class="n" id="m_ot">--</div><div class="l">you vs other people</div></div>
+ </div>
+ <p class="msg">Held-out accuracy on texts the model never saw. <span id="msg"></span></p>
+</div></section>
+
+<section><h2>2 &nbsp; Your fingerprint</h2>
+<div class="card">
+ <div class="lab" style="color:var(--or)">Words and patterns that make it sound like you</div>
+ <div class="chips" id="fp_pos"></div>
+ <div class="lab" style="margin-top:28px">What pulls it toward AI</div>
+ <div class="chips" id="fp_neg"></div>
+</div></section>
+
+<section><h2>3 &nbsp; Before / After</h2>
+<div class="card">
+ <div class="row">
+  <div><div class="lab">To (optional)</div><select id="person"><option value="">no one</option></select></div>
+  <div><div class="lab">What to write</div><input id="task" placeholder="e.g. tell him I can't make Friday, offer Monday"></div>
+ </div>
+ <div id="paste" class="hide"><div class="lab">No LLM attached. Paste texts, separated by blank lines. The first is the Plain AI baseline.</div><textarea id="pastebox"></textarea></div>
+ <div style="margin-top:14px"><button id="go">Write it</button> <span class="msg" id="gmsg"></span></div>
+ <div class="two hide" id="ba" style="margin-top:28px">
+  <div class="card"><div class="lab">Plain AI</div><div class="score" id="s_plain"></div><div class="txt" id="t_plain"></div></div>
+  <div class="card pick"><div class="lab" style="color:var(--or)">Dasein pick</div><div class="score" id="s_pick"></div><div class="txt" id="t_pick" contenteditable="true" title="edit before sending"></div>
+   <div style="margin-top:18px"><button id="sent">I sent this</button></div></div>
+ </div>
+ <p class="msg hide" id="legend"><mark style="background:var(--orsoft);color:#ffb08f;padding:0 4px;border-radius:4px">you</mark> &nbsp; <s style="color:#7a7a82">AI-like</s></p>
+</div></section>
+
+<section><h2>4 &nbsp; Self-learning</h2>
+<div class="card">
+ <div class="two">
+  <div><div class="cnt"><span id="lc">0</span><small>/20 until refit</small></div>
+   <p class="msg">Every message you send gets added as an example of you. At 20 it refits by itself.</p>
+   <button class="ghost" id="refit">Refit now</button></div>
+  <div><div class="lab">you vs AI, over refits</div><svg id="sp_ai"></svg><div class="lab" style="margin-top:14px">you vs other people</div><svg id="sp_ot"></svg></div>
+ </div>
+</div></section>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const J=(u,b)=>fetch(u,b?{method:'POST',body:JSON.stringify(b)}:{}).then(r=>r.json());
+let FP={hl_pos:[],hl_neg:[]},lastFit=0,person=()=>$('person').value;
+const STEPS=[['reading','Reading'],['learning','Learning'],['evaluating','Evaluating'],['done','Done']];
+const pct=x=>x==null?'--':`${(x*100).toFixed(1)}<small>%</small>`;
+function spark(el,h,k){const v=h.map(x=>x[k]).filter(x=>x!=null);const s=$(el);
+ if(v.length<1){s.innerHTML='';return}
+ const lo=Math.min(...v,.5),hi=Math.max(...v,1),W=300,H=80;
+ const pts=v.map((y,i)=>[v.length==1?W/2:i*(W-20)/(v.length-1)+10,H-8-(y-lo)/(hi-lo||1)*(H-24)]);
+ s.setAttribute('viewBox',`0 0 ${W} ${H}`);
+ s.innerHTML=`<polyline fill="none" stroke="#ff5a1f" stroke-width="2.5" stroke-linejoin="round" points="${pts.map(p=>p.join(',')).join(' ')}"/>`+pts.map((p,i)=>`<circle cx="${p[0]}" cy="${p[1]}" r="4" fill="#ff5a1f"/><text x="${p[0]}" y="${p[1]-9}" fill="#8b8b92" font-size="11" text-anchor="middle">${(v[i]*100).toFixed(1)}</text>`).join('')}
+async function poll(){
+ const s=await J('/api/status');
+ const idx=STEPS.findIndex(x=>x[0]==s.stage);
+ $('steps').innerHTML=STEPS.map((x,i)=>`<div class="step ${i==idx?'on':i<idx?'done':''}">${x[1]}</div>`).join('');
+ $('bar').style.width=(s.progress||0)*100+'%';
+ $('counts').innerHTML=s.mine!=null?`<div><b>${s.mine}</b> your texts</div><div><b>${s.others??'-'}</b> other people's</div><div><b>${s.ai??'-'}</b> AI texts</div>`:'';
+ const m=s.metrics||{};$('m_ai').innerHTML=pct(m.ai&&m.ai.acc);$('m_ot').innerHTML=pct(m.others&&m.others.acc);
+ $('msg').textContent=s.stage=='error'?s.label:s.stage=='none'?'Run dasein fit, or press Refit now.':'';
+ $('lc').textContent=s.learn_count;
+ spark('sp_ai',s.history,'ai');spark('sp_ot',s.history,'others');
+ $('paste').classList.toggle('hide',s.llm);$('go').textContent=s.llm?'Write it':'Score these';
+ if(s.stage=='done'&&s.updated!=lastFit){lastFit=s.updated;loadFP()}
+}
+function chips(el,a,c){$(el).innerHTML=a.map((x,i)=>`<span class="chip ${c}" style="animation-delay:${i*30}ms">${x.t.replace(/</g,'&lt;')}</span>`).join('')||'<span class="msg">after the first fit</span>'}
+async function loadFP(){FP=await J('/api/fingerprint');chips('fp_pos',FP.pos,'p');chips('fp_neg',FP.neg,'n')}
+const esc=s=>s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+function hl(text){const lo=text.toLowerCase(),tag=new Array(text.length).fill(0);
+ const all=[...FP.hl_pos.map(t=>[t,1]),...FP.hl_neg.map(t=>[t,2])].sort((a,b)=>b[0].length-a[0].length);
+ for(const [t,k] of all){let i=-1;while((i=lo.indexOf(t,i+1))>=0){if(tag.slice(i,i+t.length).every(x=>!x))tag.fill(k,i,i+t.length)}}
+ let o='',cur=0,buf='';const fl=()=>{if(buf)o+=cur==1?`<mark>${esc(buf)}</mark>`:cur==2?`<s>${esc(buf)}</s>`:esc(buf);buf=''};
+ for(let i=0;i<text.length;i++){if(tag[i]!=cur){fl();cur=tag[i]}buf+=text[i]}fl();return o}
+async function people(){const p=await J('/api/people');$('person').innerHTML='<option value="">no one</option>'+p.map(x=>`<option>${x}</option>`).join('')}
+$('go').onclick=async()=>{
+ $('go').disabled=true;$('gmsg').textContent='Writing 7 drafts and scoring them. This takes a minute.';
+ let r;try{const st=await J('/api/status');
+  r=st.llm?await J('/api/generate',{person:person(),task:$('task').value}):await J('/api/score',{texts:$('pastebox').value.split(/\n\s*\n/)})}catch(e){r={error:String(e)}}
+ $('go').disabled=false;
+ if(r.error){$('gmsg').textContent=r.error;return}
+ $('gmsg').textContent=`Best of ${r.all.length} drafts.`;
+ for(const k of ['plain','pick']){$('s_'+k).innerHTML=`${r[k].score}<small>dasein score</small>`;$('t_'+k).innerHTML=hl(r[k].text);$('t_'+k).dataset.raw=r[k].text}
+ $('ba').classList.remove('hide');$('legend').classList.remove('hide');$('ba').style.animation='pop .5s both';
+};
+$('sent').onclick=async()=>{const r=await J('/api/learn',{text:$('t_pick').innerText,person:person()});$('lc').textContent=r.learn_count;$('sent').textContent='Learned';setTimeout(()=>$('sent').textContent='I sent this',1500);poll()};
+$('refit').onclick=async()=>{await J('/api/refit',{});poll()};
+people();loadFP();poll();setInterval(poll,1000);
+</script></body></html>

@@ -107,9 +107,60 @@ def person_has(p):
     return (PEOPLE / f"{_slug(p)}.md").exists()
 
 
+def status(**kw):
+    """Merge progress fields into DASEIN_HOME/status.json (read by `dasein ui`)."""
+    import time
+    HOME.mkdir(parents=True, exist_ok=True)
+    f = HOME / "status.json"
+    try:
+        d = json.loads(f.read_text())
+    except Exception:
+        d = {}
+    d.update(kw, updated=time.time())
+    f.write_text(json.dumps(d))
+
+
+def run_fit(mine, rewrite_endpoint=None, rewrite_model="default", rewrite_n=0, report=print):
+    """80/20 held-out eval, then fit on everything and save. Writes progress to status.json. Returns metrics."""
+    from sklearn.metrics import roc_auc_score
+    random.seed(0); random.shuffle(mine)
+    k = int(len(mine) * 0.8)
+    tr, te = mine[:k], mine[k:]
+    def split(l):
+        l = l[:]; random.shuffle(l); k = int(len(l) * 0.8)
+        return l[:k], l[k:]
+    ai, oth = ai_generic(), other_humans()
+    status(stage="reading", label="Reading", mine=len(mine), others=len(oth), ai=len(ai), progress=0.1)
+    atr, ate = split(ai)
+    otr, ote = split(oth)
+    ntr = atr + otr
+    if rewrite_endpoint:
+        n = rewrite_n or min(len(tr), 100)
+        ntr += [rewrite(rewrite_endpoint, rewrite_model, t) for t in tr[:n]]
+    status(stage="learning", label="Learning", progress=0.3)
+    m = fit(tr, ntr)
+    status(stage="evaluating", label="Evaluating", progress=0.7)
+    metrics = {}
+    for key, label, neg in (("ai", "you vs AI", ate), ("others", "you vs other people", ote)):
+        if not neg:
+            report(f"{label}: no data"); continue
+        s, sn = score(te, m), score(neg, m)
+        ok = sum(v > .5 for v in s) + sum(v <= .5 for v in sn)
+        auc = roc_auc_score([1] * len(s) + [0] * len(sn), s + sn)
+        metrics[key] = {"acc": ok / (len(s) + len(sn)), "auc": auc}
+        report(f"{label}: held-out accuracy {ok}/{len(s)+len(sn)} = {ok/(len(s)+len(sn)):.3f}, AUC {auc:.3f}")
+    save(fit(mine, ntr + ate + ote))
+    h = HOME / "history.json"
+    hist = json.loads(h.read_text()) if h.exists() else []
+    hist.append({"n": len(mine), **{k: v["acc"] for k, v in metrics.items()}})
+    h.write_text(json.dumps(hist))
+    status(stage="done", label="Done", progress=1.0, metrics=metrics)
+    return metrics
+
+
 def retrain():
     mine = load_lines(MINE)
-    save(fit(mine, negatives()))
+    run_fit(mine, report=lambda *_: None)
     return len(mine)
 
 

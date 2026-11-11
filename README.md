@@ -16,6 +16,8 @@ claude mcp add dasein -- uv --directory $PWD run dasein mcp # 3. plug into Claud
 
 Optional: `--rewrite-endpoint http://localhost:8080/v1 --rewrite-n 100` makes a local LLM rewrite some of your texts and trains against those too (the sharpest contrast: same content, not your voice).
 
+See it work: `dasein ui [--llm http://127.0.0.1:18080/v1 --model <name>]` opens a local page (127.0.0.1:8799) with live fit progress, your n-gram fingerprint, Plain-AI vs Dasein-pick, and the self-learning loop. Nothing leaves the machine except calls to the LLM you point it at.
+
 ## How it works
 
 1. Your texts are positives; bundled generic AI answers (HC3 ChatGPT, `data/ai_generic.jsonl`) and optional LLM rewrites of your texts are negatives.
